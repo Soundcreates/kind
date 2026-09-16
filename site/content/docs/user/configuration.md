@@ -31,6 +31,32 @@ options and behavior. This is why we must always specify the version.
 
 This mechanism is inspired by Kubernetes resources and component config.
 
+### Version compatibility
+
+This page documents the `kind.x-k8s.io/v1alpha4` configuration API. The API
+was introduced in kind v0.6.0. The table below lists the first kind release
+that supports each documented field or value. Older kind releases may reject
+these fields even when the YAML is otherwise valid.
+
+| Configuration field | Minimum kind version | Minimum config API |
+| --- | --- | --- |
+| `kind: Cluster`, `apiVersion: kind.x-k8s.io/v1alpha4` | v0.6.0 | v1alpha4 |
+| `name` | v0.8.0 | v1alpha4 |
+| `featureGates` | v0.8.0 | v1alpha4 |
+| `runtimeConfig` | v0.9.0 | v1alpha4 |
+| `kubeadmConfigPatches`, `kubeadmConfigPatchesJSON6902` | v0.6.0 | v1alpha4 |
+| `containerdConfigPatches`, `containerdConfigPatchesJSON6902` | v0.6.0 | v1alpha4 |
+| `networking.ipFamily: ipv4`, `ipv6` | v0.6.0 | v1alpha4 |
+| `networking.ipFamily: dual` | v0.11.0 | v1alpha4 |
+| `networking.apiServerAddress`, `apiServerPort`, `podSubnet`, `serviceSubnet`, `disableDefaultCNI` | v0.6.0 | v1alpha4 |
+| `networking.kubeProxyMode: iptables`, `ipvs` | v0.9.0 | v1alpha4 |
+| `networking.kubeProxyMode: none` | v0.11.0 | v1alpha4 |
+| `networking.kubeProxyMode: nftables` | v0.23.0 | v1alpha4 |
+| `networking.dnsSearch` | v0.18.0 | v1alpha4 |
+| `nodes[].role`, `image`, `extraMounts`, `extraPortMappings` | v0.6.0 | v1alpha4 |
+| `nodes[].labels` | v0.11.0 | v1alpha4 |
+| `nodes[].kubeadmConfigPatches`, `kubeadmConfigPatchesJSON6902` | v0.6.0 | v1alpha4 |
+
 To use this config, place the contents in a file `config.yaml` and then run
 `kind create cluster --config=config.yaml` from the same directory.
 
@@ -229,6 +255,20 @@ networking:
 {{< /codeFromInline >}}
 
 To disable kube-proxy, set the mode to `"none"`.
+
+#### DNS Search
+
+You can set the DNS search domains used by every node with `dnsSearch`. If it
+is not set, the search domains are inherited from the host.
+
+{{< codeFromInline lang="yaml" >}}
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  dnsSearch:
+  - example.com
+  - svc.example.com
+{{< /codeFromInline >}}
 
 ### Nodes
 The `kind: Cluster` object has a `nodes` field containing a list of `node`
@@ -458,81 +498,3 @@ nodes:
   kubeadmConfigPatches:
     - |
       kind: JoinConfiguration
-      nodeRegistration:
-        kubeletExtraArgs:
-          register-with-taints: "my-taint=presence:NoSchedule"
-{{< /codeFromInline >}}
-
-On every additional node configured in the KIND cluster, 
-worker or control-plane (in HA mode),
-KIND runs `kubeadm join` which can be configured using the 
-[JoinConfiguration](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-join/#config-file)
-([spec](https://godoc.org/k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta3#JoinConfiguration))
-
-{{< codeFromInline lang="yaml" >}}
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-nodes:
-- role: control-plane
-- role: worker
-- role: worker
-  kubeadmConfigPatches:
-  - |
-    kind: JoinConfiguration
-    nodeRegistration:
-      kubeletExtraArgs:
-        node-labels: "my-label2=true"
-- role: control-plane
-  kubeadmConfigPatches:
-  - |
-    kind: JoinConfiguration
-    nodeRegistration:
-      kubeletExtraArgs:
-        node-labels: "my-label3=true"
-{{< /codeFromInline >}}
-
-If you need more control over patching, strategic merge and JSON6092 patches can
-be used as well. These are specified using files in a directory, for example
-`./patches/kube-controller-manager.yaml` could be the following.
-
-{{< codeFromInline lang="yaml" >}}
-apiVersion: v1
-kind: Pod
-metadata:
-  name: kube-controller-manager
-  namespace: kube-system
-spec:
-  containers:
-  - name: kube-controller-manager
-    env:
-    - name: KUBE_CACHE_MUTATION_DETECTOR
-      value: "true"
-{{< /codeFromInline >}}
-
-Then in your kind YAML configuration use the following.
-
-{{< codeFromInline lang="yaml" >}}
-nodes:
-- role: control-plane
-  extraMounts:
-  - hostPath: ./patches
-    containerPath: /patches
-
-kubeadmConfigPatches:
-  - |
-    kind: InitConfiguration
-    patches:
-      directory: /patches
-{{< /codeFromInline >}}
-
-Note the `extraMounts` stanza. The node is a container created by
-`kind`. `kubeadm` is run inside this node container, and the local directory
-that contains the patches has to be accessible to `kubeadm`. `extraMounts`
-plumbs a local directory through to this node container.
-
-This example was for changing the manager in the control plane. To use a patch
-for a worker node, use a `JoinConfiguration` patch and an `extraMounts` stanza
-for the `worker` role.
-
-[YAML]: https://yaml.org/
-[feature gates]: https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/
